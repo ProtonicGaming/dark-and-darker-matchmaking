@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "dark-and-darker-matchmaking"
+version = "0.1.0"
+description = "Dark and Darker matchmaking proof of concept"
+authors = ["protonic <pr0tonic@protonmail.ch>"]
+license = "Apache License 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.8.2"
+pytest = "^8.3.2"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.8.0"
+flake8 = "^7.1.1"
+mypy = "^1.11.1"
+isort = "^5.13.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
