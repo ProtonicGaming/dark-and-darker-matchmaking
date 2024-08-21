@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, AfterValidator
+from pydantic import BaseModel, AfterValidator, computed_field, Field
 
 from typing import Annotated, Literal
 
@@ -47,5 +47,19 @@ class Party(BaseModel):
 class Lobby(BaseModel):
     parties: list[Party]
     map: Map
-    max_parties: int
-    party_size: int
+
+    party_size: Annotated[int, Field(ge=1, le=3)]
+
+    @computed_field
+    @property
+    def max_players(self) -> int:
+        match self.party_size:
+            case 1:
+                return 10
+            case 2:
+                return 14
+            case 3:
+                return 15
+
+    def current_player_count(self) -> int:
+        return sum([len(p) for p in self.parties])

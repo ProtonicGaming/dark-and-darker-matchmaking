@@ -82,7 +82,7 @@ def test_single_player_party():
     assert matchmaking.max_gearscore_mmr(party) == player.gear_score
     assert matchmaking.average_gearscore_mmr(party) == player.gear_score
 
-
+"""
 def test_combine_incomplete_parties():
     max_party_size = 3
     parties = [
@@ -101,3 +101,73 @@ def test_combine_incomplete_parties():
 
     assert len(failed_to_complete) == 2
     assert len(complete_parties) == 4
+"""
+
+def test_successful_attempt_add_party_to_lobby():
+    party_a = Party(
+        players=[
+            Player(job="fighter", level=10, gear_score=100),
+            Player(job="wizard", level=20, gear_score=150),
+            Player(job="wizard", level=21, gear_score=151)
+        ],
+        map="goblin_caves",
+        max_size=3,
+    )
+
+    party_b = Party(
+        players=[
+            Player(job="rogue", level=30, gear_score=200),
+            Player(job="bard", level=40, gear_score=250),
+   nn     ],
+        map="goblin_caves",
+        max_size=3,
+    )
+
+    party_c = Party(
+        players=[
+            Player(job="rogue", level=31, gear_score=201)],
+        map="goblin_caves",
+        max_size=3,
+    )
+
+    lobby_a = Lobby(parties=[party_a, party_b],
+                    map="goblin_caves",
+                    party_size = 3)
+
+    assert matchmaking.attempt_merge_party(lobby_a, party_c)
+
+
+def test_fail_attempt_add_party_to_lobby():
+    party_a = Party(
+        players=[
+            Player(job="fighter", level=10, gear_score=100),
+            Player(job="wizard", level=20, gear_score=150),
+            Player(job="wizard", level=21, gear_score=151)
+        ],
+        map="goblin_caves",
+        max_size=3,
+    )
+
+    party_b = Party(
+        players=[
+            Player(job="rogue", level=30, gear_score=200),
+            Player(job="bard", level=40, gear_score=250),
+        ],
+        map="goblin_caves",
+        max_size=3,
+    )
+
+    party_c = Party(
+        players=[
+            Player(job="rogue", level=30, gear_score=200),
+            Player(job="bard", level=40, gear_score=175),
+        ],
+        map="goblin_caves",
+        max_size=3,
+    )
+
+    lobby_a = Lobby(parties=[party_a, party_b],
+                    map="goblin_caves",
+                    party_size = 3)
+
+    assert party_c == matchmaking.attempt_merge_party(lobby_a, party_c)

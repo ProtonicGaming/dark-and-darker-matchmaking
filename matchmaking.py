@@ -1,4 +1,5 @@
 from schema import Party, Player, Lobby
+from typing import Tuple
 
 
 # MMR Heirutrics
@@ -25,13 +26,17 @@ def are_parties_matchable(
     return can_match
 
 
-def can_add_party_to_lobby(lobby: Lobby, party: Party) -> bool:
+def can_add_party_to_lobby(
+    lobby: Lobby, party: Party, mmr_fn=max_gearscore_mmr, threshold=50
+) -> bool:
     """Determines if party can be added to lobby.
 
     Every party in the lobby must be matchable with new potential party"""
 
     for lobby_party in lobby.parties:
-        if not are_parties_matchable(lobby_party, party):
+        if not are_parties_matchable(
+            lobby_party, party, mmr_fn=mmr_fn, threshold=threshold
+        ):
             return False
 
     return True
@@ -45,7 +50,8 @@ def is_possible_lobby(lobby: Lobby, party: Party) -> bool:
     return correct_map and correct_size and correct_mmr
 
 
-def combine_incomplete_parties(parties: list[Party], party_size:int) -> list[Party]:
+"""
+def combine_incomplete_parties(parties: list[Party], party_size: int) -> list[Party]:
 
     complete_parties = [p for p in parties if len(p) == party_size]
 
@@ -53,26 +59,36 @@ def combine_incomplete_parties(parties: list[Party], party_size:int) -> list[Par
     incomplete_parties = sorted(incomplete_parties, key=lambda x: len(x), reverse=True)
 
     failed_to_complete = []
+    combined_parties = []
 
     # Take first party in list
     # keep attempting to add players until full
     # move on to next incomplete party
 
     while incomplete_parties:
-        current_party = incomplete_parties.pop(0)
+        currently_filling = incomplete_parties.pop(0)
 
         for i, other_party in enumerate(incomplete_parties):
-            if len(current_party) + len(other_party) <= party_size:
+            if len(currently_filling) + len(other_party) <= party_size:
+
+                new_players = currently_filling.players + other_party.players
+                new_party = Party(
+                    players=new_players,
+                    map=currently_filling.map,
+                    max_size=currently_filling.max_size,
+                )
+
+                combined_parties.append(currently_filling)
+                combined_parties.append(other_party)
                 incomplete_parties.pop(i)
 
-                current_party.players = current_party.players + other_party.players
-
-        if len(current_party) == party_size:
-            complete_parties.append(current_party)
+        if len(currently_filling) == party_size:
+            complete_parties.append(currently_filling)
         else:
             failed_to_complete.append(current_party)
 
     return complete_parties, failed_to_complete
+"""
 
 
 def add_party_to_lobbies(lobbies: list[Lobby], party: Party):
@@ -90,12 +106,40 @@ def add_party_to_lobbies(lobbies: list[Lobby], party: Party):
     None
 
 
-def start_lobby(lobby: Lobby) -> Lobby:
-    lobby.parties = [p for p in lobby.parties if len(p) == lobby.party_size]
+def attempt_merge_party(lobby: Lobby, new_party: Party) -> Tuple[bool, Party]:
+    if len(new_party) == lobby.party_size:
+        raise Exception("You messed up")
 
-    return lobby
+    for existing_party in lobby.parties:
+        if len(existing_party) + len(new_party) <= lobby.party_size:
+            existing_party.players = existing_party.players + new_party.players
+            return True, new_party
+
+    return False, new_party
 
 
+def attempt_add_party_to_lobby(
+    lobby: Lobby, party: Party, mmr_fn=max_gearscore_mmr, threshold=50
+):
+
+    # mmr check
+    mmr_check = can_add_party_to_lobby(lobby, party, mmr_fn=mmr_fn, threshold=threshold)
+    player_count_check = (lobby.current_player_count() + len(party)) <= lobby.max_players
+
+    if mmr_check and player_count_check:
+    #if player_count_check:
+        if len(party) == lobby.party_size:
+            lobby.parties.append(party)
+
+            return True, party
+
+        else:
+            # attempt to combine parties
+            was_merged, party = attempt_merge_party(lobby, party)
+            return was_merged, party
+
+    else:
+        return False, party
 
 
 # select random map
