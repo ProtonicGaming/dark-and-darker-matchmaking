@@ -29,7 +29,7 @@ class Player(BaseModel):
     gear_score: int
 
 
-def empty_party(p: list[Player]):
+def empty_party(p: list[Player]) -> list[Player]:
     assert len(p) > 0, "Party cannot be empty"
     return p
 
@@ -44,13 +44,20 @@ class Party(BaseModel):
         return len(self.players)
 
 
+class LobbyStats(Enum):
+    filling = "filling"
+    started = "started"
+    canceled = "canceled"
+
+
 class Lobby(BaseModel):
     parties: list[Party]
     map: Map
 
+    # solo/duo/trio
     party_size: Annotated[int, Field(ge=1, le=3)]
 
-    @computed_field
+    @computed_field # type: ignore[misc]
     @property
     def max_players(self) -> int:
         match self.party_size:
@@ -60,6 +67,9 @@ class Lobby(BaseModel):
                 return 14
             case 3:
                 return 15
+            # put this here to make mypy happen despite the party_size constraints
+            case _:
+                return 10
 
     def current_player_count(self) -> int:
         return sum([len(p) for p in self.parties])

@@ -124,10 +124,12 @@ def attempt_add_party_to_lobby(
 
     # mmr check
     mmr_check = can_add_party_to_lobby(lobby, party, mmr_fn=mmr_fn, threshold=threshold)
-    player_count_check = (lobby.current_player_count() + len(party)) <= lobby.max_players
+    player_count_check = (
+        lobby.current_player_count() + len(party)
+    ) <= lobby.max_players
 
     if mmr_check and player_count_check:
-    #if player_count_check:
+        # if player_count_check:
         if len(party) == lobby.party_size:
             lobby.parties.append(party)
 
@@ -142,27 +144,84 @@ def attempt_add_party_to_lobby(
         return False, party
 
 
-# select random map
-# select random party size
-#    trio cannot queue for solos
+def put_party_in_lobby(waiting_lobbies: dict[int : list[Lobby]], party: Party):
+    """Adds a party from the matchmaking queue to lobbies being filled."""
+
+    possible_lobbies = waiting_lobbies[party.max_size]
+    if not possible_lobbies:
+        # create lobby
+        new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
+        possible_lobbies.append(new_lobby)
+    else:
+        successfully_added_party = False
+        for lobby in possible_lobbies:
+            # attempt to add to existing lobbies
+            was_merged, _ = attempt_add_party_to_lobby(lobby, party)
+            if was_merged:
+                print("MERGED")
+                successfully_added_party = True
+                break
+        # failed to add to lobby - create new lobby
+        if not successfully_added_party:
+            new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
+            possible_lobbies.append(new_lobby)
+
+    return waiting_lobbies
 
 
-# 1. generate random players/parties
-# 2. matchmake
+def maybe_start_lobby(lobby, max_wait_time_secs=300) -> Tuple[Lobby, list[Party]]:
+    "Starts lobby if it should be started. Also removes non-full parties."
+
+    is_full = lobby.current_player_count() == lobby.max_players
+
+    """
+    dropped_parties = []
+    if is_full or past_max_wait_time:
+        lobby.status = "started"
+
+        for party in lobby.parties:
+            if len(party) < lobby.party_size:
+                lobby.parties.remove(party)
+                dropped_parties.append(party)
+
+    return lobby, dropped_parties
+    """
+
+    # if full or max wait time
+    # remove non-full parties
+    # start game
 
 
-# calculate MMR
-#     gear score
-#     level
-#     skill metric
+def maybe_cancel_matchmaking(
+    lobby, max_wait_time_secs=300
+) -> Tuple[Lobby, list[Party]]:
+    # if past max_queue_time and no full parties
+    # send parties back to menu
+    None
 
 
-# match based on mmr
-# tradeoff close MMR/queue time/full lobbies
+def regroup_lobbies(
+    waiting_lobbies: dict[int : list[Lobby]],
+) -> Tuple[Lobby, Lobby, Lobby]:
+    "Regroups lobbies into waiting, started, and canceled"
+    None
 
 
-# fill trio party:
-# 1. find one player, put him in the party
-# 2. find more players to fill the party but their MMR cant be too from OG players mmr
+def matchmake_party(waiting_lobbies: dict[int : list[Lobby]], party: Party):
 
-# match parties together in a lobby until max wait time
+    waiting_lobbies = put_party_in_lobby(waiting_lobbies, party)
+
+    canceled_parties = []
+    for lobby in waiting_lobbies.values():
+        _, dropped_parties = maybe_start_lobby(lobby)
+        if dropped_parties:
+            canceled_parties = canceled_parties + dropped_parties
+
+        _, dropped_parties = maybe_cancel_matchmaking(lobby)
+        if dropped_parties:
+            canceled_parties = canceled_parties + dropped_parties
+
+    waiting_lobbies, started_lobbies, canceled_parties = regroup_lobbies(
+        waiting_lobbies
+    )
+    return waiting_lobbies, started_lobbies, canceled_parties

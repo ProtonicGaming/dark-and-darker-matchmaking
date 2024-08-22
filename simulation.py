@@ -68,7 +68,7 @@ def consumer():
             print(k, len(v))
         """
 
-        _, party = QUEUE.get()
+        priority, party = QUEUE.get()
 
         lobby_party_size = party.max_size
 
@@ -107,8 +107,10 @@ def consumer():
                     print("STARTED")
                     started_lobbies[lobby_party_size].append(lobby)
 
-        for k,v in started_lobbies.items():
-            print(k, len(v))
+        if priority == 299:
+            for k,v in started_lobbies.items():
+                if v:
+                    print(k, v[0])
 
 
 def main():
