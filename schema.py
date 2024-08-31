@@ -5,7 +5,7 @@ from pydantic import BaseModel, AfterValidator, computed_field, Field
 from typing import Annotated, Literal
 
 
-class Job(Enum):
+class Job(str, Enum):
     bard = "bard"
     barbarian = "barbarian"
     cleric = "cleric"
@@ -17,7 +17,7 @@ class Job(Enum):
     wizard = "wizard"
 
 
-class Map(Enum):
+class Map(str, Enum):
     goblin_caves = "goblin_caves"
     howing_crypts = "howling_crypts"
     ice_cavern = "ice_cavern"
@@ -44,7 +44,7 @@ class Party(BaseModel):
         return len(self.players)
 
 
-class LobbyStats(Enum):
+class LobbyStatus(str, Enum):
     filling = "filling"
     started = "started"
     canceled = "canceled"
@@ -53,6 +53,9 @@ class LobbyStats(Enum):
 class Lobby(BaseModel):
     parties: list[Party]
     map: Map
+
+    queue_time: int = 0
+    status: LobbyStatus = LobbyStatus.filling
 
     # solo/duo/trio
     party_size: Annotated[int, Field(ge=1, le=3)]

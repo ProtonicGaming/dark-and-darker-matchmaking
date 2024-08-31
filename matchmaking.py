@@ -1,4 +1,4 @@
-from schema import Party, Player, Lobby
+from schema import Party, Lobby, LobbyStatus
 from typing import Tuple
 
 
@@ -144,40 +144,40 @@ def attempt_add_party_to_lobby(
         return False, party
 
 
-def put_party_in_lobby(waiting_lobbies: dict[int : list[Lobby]], party: Party):
+def put_party_in_lobby(waiting_lobbies: list[Lobby], party: Party) -> list[Lobby]:
     """Adds a party from the matchmaking queue to lobbies being filled."""
 
-    possible_lobbies = waiting_lobbies[party.max_size]
-    if not possible_lobbies:
+    if not waiting_lobbies:
         # create lobby
         new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
-        possible_lobbies.append(new_lobby)
+        waiting_lobbies.append(new_lobby)
     else:
         successfully_added_party = False
-        for lobby in possible_lobbies:
+        for lobby in waiting_lobbies:
             # attempt to add to existing lobbies
             was_merged, _ = attempt_add_party_to_lobby(lobby, party)
             if was_merged:
-                print("MERGED")
                 successfully_added_party = True
                 break
         # failed to add to lobby - create new lobby
         if not successfully_added_party:
             new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
-            possible_lobbies.append(new_lobby)
+            waiting_lobbies.append(new_lobby)
 
     return waiting_lobbies
 
 
-def maybe_start_lobby(lobby, max_wait_time_secs=300) -> Tuple[Lobby, list[Party]]:
+def maybe_start_lobby(
+    lobby: Lobby, max_queue_time_secs=120
+) -> Tuple[Lobby, list[Party]]:
     "Starts lobby if it should be started. Also removes non-full parties."
 
     is_full = lobby.current_player_count() == lobby.max_players
+    past_max_wait_time = lobby.queue_time >= max_queue_time_secs
 
-    """
     dropped_parties = []
     if is_full or past_max_wait_time:
-        lobby.status = "started"
+        lobby.status = LobbyStatus.started
 
         for party in lobby.parties:
             if len(party) < lobby.party_size:
@@ -185,43 +185,53 @@ def maybe_start_lobby(lobby, max_wait_time_secs=300) -> Tuple[Lobby, list[Party]
                 dropped_parties.append(party)
 
     return lobby, dropped_parties
-    """
-
-    # if full or max wait time
-    # remove non-full parties
-    # start game
 
 
 def maybe_cancel_matchmaking(
-    lobby, max_wait_time_secs=300
+    lobby, max_queue_time_secs=300
 ) -> Tuple[Lobby, list[Party]]:
     # if past max_queue_time and no full parties
     # send parties back to menu
-    None
+
+    past_max_wait_time = lobby.queue_time >= max_queue_time_secs
+    if past_max_wait_time and lobby.status == LobbyStatus.filling:
+        lobby.status = LobbyStatus.canceled
+        return lobby, lobby.parties
+    else:
+        return lobby, []
 
 
 def regroup_lobbies(
-    waiting_lobbies: dict[int : list[Lobby]],
-) -> Tuple[Lobby, Lobby, Lobby]:
+    lobbies: list[Lobby],
+) -> Tuple[list[Lobby], list[Lobby], list[Lobby]]:
     "Regroups lobbies into waiting, started, and canceled"
-    None
+
+    waiting = [lob for lob in lobbies if lob.status == LobbyStatus.filling]
+    started = [lob for lob in lobbies if lob.status == LobbyStatus.started]
+    canceled = [lob for lob in lobbies if lob.status == LobbyStatus.canceled]
+
+    return waiting, started, canceled
 
 
-def matchmake_party(waiting_lobbies: dict[int : list[Lobby]], party: Party):
+def matchmake_party(
+    waiting_lobbies: list[Lobby], party: Party, max_queue_time_secs: int = 120
+) -> Tuple[list[Lobby], list[Lobby], list[Party]]:
 
     waiting_lobbies = put_party_in_lobby(waiting_lobbies, party)
 
-    canceled_parties = []
-    for lobby in waiting_lobbies.values():
-        _, dropped_parties = maybe_start_lobby(lobby)
-        if dropped_parties:
-            canceled_parties = canceled_parties + dropped_parties
+    canceled_parties: list[Party] = []
+    for lobby in waiting_lobbies:
+        _, dropped_parties = maybe_start_lobby(
+            lobby, max_queue_time_secs=max_queue_time_secs
+        )
+        canceled_parties = canceled_parties + dropped_parties
 
-        _, dropped_parties = maybe_cancel_matchmaking(lobby)
-        if dropped_parties:
-            canceled_parties = canceled_parties + dropped_parties
+        _, dropped_parties = maybe_cancel_matchmaking(
+            lobby, max_queue_time_secs=max_queue_time_secs
+        )
+        canceled_parties = canceled_parties + dropped_parties
 
-    waiting_lobbies, started_lobbies, canceled_parties = regroup_lobbies(
+    waiting_lobbies, started_lobbies, canceled_lobbies = regroup_lobbies(
         waiting_lobbies
     )
     return waiting_lobbies, started_lobbies, canceled_parties

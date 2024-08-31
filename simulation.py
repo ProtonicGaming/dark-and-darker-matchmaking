@@ -5,6 +5,17 @@ from typing import Tuple
 import matchmaking as matchmaking
 import time
 import threading
+import json
+
+from pydantic import BaseModel
+
+
+class PydanticEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, BaseModel):
+            return o.model_dump()
+        else:
+            return super().default(o)
 
 
 def generate_player(
@@ -55,6 +66,62 @@ def producer():
             QUEUE.put((priority, new_party))
 
 
+def party_queing_generator(current_map=Map.goblin_caves):
+    t = 0
+    while True:
+        new_party_queued = random.choices([True, False], weights=[0.5, 0.5])[0]
+        if new_party_queued:
+            new_party = generate_party(map=current_map)
+            yield new_party
+            t += 1
+        else:
+            yield None
+
+
+def simulator(simulated_secs=300, max_queue_time_secs=30) -> dict:
+
+    all_waiting_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
+    all_started_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
+    # all_canceled_lobbies = {1: [], 2: [], 3: []}
+
+    all_canceled_parties: list[Party] = []
+
+    for t in range(simulated_secs):
+        gen = party_queing_generator()
+
+        for lobby_group in all_waiting_lobbies.values():
+            for lobby in lobby_group:
+                lobby.queue_time += 1
+
+        possibly_queued_party = next(gen)
+
+        if possibly_queued_party:
+            l_party_size = possibly_queued_party.max_size
+            lobby_group = all_waiting_lobbies[l_party_size]
+
+            lobby_group, started_lobbies, canceled_parties = (
+                matchmaking.matchmake_party(
+                    lobby_group,
+                    possibly_queued_party,
+                    max_queue_time_secs=max_queue_time_secs,
+                )
+            )
+
+            all_waiting_lobbies[l_party_size] = lobby_group
+            all_started_lobbies[l_party_size] = (
+                all_started_lobbies[l_party_size] + started_lobbies
+            )
+            all_canceled_parties = all_canceled_parties + canceled_parties
+            # all_canceled_lobbies[l_party_size].append(canceled_parties)
+
+    return {
+        "started": all_started_lobbies,
+        "waiting": all_waiting_lobbies,
+        "canceled_parties": all_canceled_parties,
+        # "canceled": all_canceled_lobbies,
+    }
+
+
 def consumer():
     waiting_lobbies = {1: [], 2: [], 3: []}
 
@@ -62,7 +129,7 @@ def consumer():
 
     while True:
 
-        #print(started_lobbies)
+        # print(started_lobbies)
         """
         for k, v in waiting_lobbies.items():
             print(k, len(v))
@@ -98,17 +165,16 @@ def consumer():
                 )
                 possible_lobbies.append(new_lobby)
 
-
         for lobby_party_size, list_of_lobbies in waiting_lobbies.items():
             for lobby in list_of_lobbies:
-                #print(lobby.current_player_count(), lobby.max_players)
+                # print(lobby.current_player_count(), lobby.max_players)
                 if lobby.current_player_count() == lobby.max_players:
                     list_of_lobbies.remove(lobby)
                     print("STARTED")
                     started_lobbies[lobby_party_size].append(lobby)
 
         if priority == 299:
-            for k,v in started_lobbies.items():
+            for k, v in started_lobbies.items():
                 if v:
                     print(k, v[0])
 
@@ -127,5 +193,7 @@ def main():
     except KeyboardInterrupt:
         print("Interrupted by user")
 
+
 if __name__ == "__main__":
-    main()
+    with open("results.json", "w") as f:
+        json.dump(simulator(), f, cls=PydanticEncoder, sort_keys=True, indent=2)
