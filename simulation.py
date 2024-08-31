@@ -1,13 +1,12 @@
-from schema import Party, Player, Lobby, Job, Map
+import json
 import random
 from queue import PriorityQueue, Queue
 from typing import Tuple
-import matchmaking as matchmaking
-import time
-import threading
-import json
 
 from pydantic import BaseModel
+
+import matchmaking as matchmaking
+from schema import Job, Lobby, Map, Party, Player
 
 
 class PydanticEncoder(json.JSONEncoder):
@@ -78,7 +77,7 @@ def party_queing_generator(current_map=Map.goblin_caves):
             yield None
 
 
-def simulator(simulated_secs=300, max_queue_time_secs=30) -> dict:
+def simulator(simulated_secs=11663, max_queue_time_secs=64) -> dict:
 
     all_waiting_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
     all_started_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
@@ -87,6 +86,7 @@ def simulator(simulated_secs=300, max_queue_time_secs=30) -> dict:
     all_canceled_parties: list[Party] = []
 
     for t in range(simulated_secs):
+
         gen = party_queing_generator()
 
         for lobby_group in all_waiting_lobbies.values():
@@ -112,7 +112,6 @@ def simulator(simulated_secs=300, max_queue_time_secs=30) -> dict:
                 all_started_lobbies[l_party_size] + started_lobbies
             )
             all_canceled_parties = all_canceled_parties + canceled_parties
-            # all_canceled_lobbies[l_party_size].append(canceled_parties)
 
     return {
         "started": all_started_lobbies,
@@ -120,78 +119,6 @@ def simulator(simulated_secs=300, max_queue_time_secs=30) -> dict:
         "canceled_parties": all_canceled_parties,
         # "canceled": all_canceled_lobbies,
     }
-
-
-def consumer():
-    waiting_lobbies = {1: [], 2: [], 3: []}
-
-    started_lobbies = {1: [], 2: [], 3: []}
-
-    while True:
-
-        # print(started_lobbies)
-        """
-        for k, v in waiting_lobbies.items():
-            print(k, len(v))
-        """
-
-        priority, party = QUEUE.get()
-
-        lobby_party_size = party.max_size
-
-        possible_lobbies = waiting_lobbies[lobby_party_size]
-
-        if not possible_lobbies:
-            # create lobby
-            new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
-
-            possible_lobbies.append(new_lobby)
-
-        else:
-            successfully_added_party = False
-            for lobby in possible_lobbies:
-                # attempt to add to existing lobbies
-                was_merged, _ = matchmaking.attempt_add_party_to_lobby(lobby, party)
-                if was_merged:
-                    print("MERGED")
-                    successfully_added_party = True
-                    break
-
-            # failed to add to lobby - create new lobby
-            if not successfully_added_party:
-
-                new_lobby = Lobby(
-                    parties=[party], map=party.map, party_size=party.max_size
-                )
-                possible_lobbies.append(new_lobby)
-
-        for lobby_party_size, list_of_lobbies in waiting_lobbies.items():
-            for lobby in list_of_lobbies:
-                # print(lobby.current_player_count(), lobby.max_players)
-                if lobby.current_player_count() == lobby.max_players:
-                    list_of_lobbies.remove(lobby)
-                    print("STARTED")
-                    started_lobbies[lobby_party_size].append(lobby)
-
-        if priority == 299:
-            for k, v in started_lobbies.items():
-                if v:
-                    print(k, v[0])
-
-
-def main():
-    producer_thread = threading.Thread(target=producer, daemon=False)
-    consumer_thread = threading.Thread(target=consumer, daemon=False)
-
-    # Start the threads
-    producer_thread.start()
-    consumer_thread.start()
-
-    # Run for a while to see the producer-consumer interaction
-    try:
-        time.sleep(10)  # Run the system for 10 seconds
-    except KeyboardInterrupt:
-        print("Interrupted by user")
 
 
 if __name__ == "__main__":

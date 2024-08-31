@@ -1,5 +1,6 @@
-from schema import Party, Lobby, LobbyStatus
 from typing import Tuple
+
+from schema import Lobby, LobbyStatus, Party
 
 
 # MMR Heirutrics
@@ -48,62 +49,6 @@ def is_possible_lobby(lobby: Lobby, party: Party) -> bool:
     correct_mmr = can_add_party_to_lobby(lobby, party)
 
     return correct_map and correct_size and correct_mmr
-
-
-"""
-def combine_incomplete_parties(parties: list[Party], party_size: int) -> list[Party]:
-
-    complete_parties = [p for p in parties if len(p) == party_size]
-
-    incomplete_parties = [p for p in parties if len(p) < party_size]
-    incomplete_parties = sorted(incomplete_parties, key=lambda x: len(x), reverse=True)
-
-    failed_to_complete = []
-    combined_parties = []
-
-    # Take first party in list
-    # keep attempting to add players until full
-    # move on to next incomplete party
-
-    while incomplete_parties:
-        currently_filling = incomplete_parties.pop(0)
-
-        for i, other_party in enumerate(incomplete_parties):
-            if len(currently_filling) + len(other_party) <= party_size:
-
-                new_players = currently_filling.players + other_party.players
-                new_party = Party(
-                    players=new_players,
-                    map=currently_filling.map,
-                    max_size=currently_filling.max_size,
-                )
-
-                combined_parties.append(currently_filling)
-                combined_parties.append(other_party)
-                incomplete_parties.pop(i)
-
-        if len(currently_filling) == party_size:
-            complete_parties.append(currently_filling)
-        else:
-            failed_to_complete.append(current_party)
-
-    return complete_parties, failed_to_complete
-"""
-
-
-def add_party_to_lobbies(lobbies: list[Lobby], party: Party):
-
-    possible_lobbies = [lobby for lobby in lobbies if is_possible_lobby(lobby, party)]
-
-    for lobby in possible_lobbies:
-        # attempt combine parties
-        #     if not back to the queue
-        pass
-
-    # can combine parties?
-    # party size must be right
-    # map must be right
-    None
 
 
 def attempt_merge_party(lobby: Lobby, new_party: Party) -> Tuple[bool, Party]:
@@ -170,7 +115,10 @@ def put_party_in_lobby(waiting_lobbies: list[Lobby], party: Party) -> list[Lobby
 def maybe_start_lobby(
     lobby: Lobby, max_queue_time_secs=120
 ) -> Tuple[Lobby, list[Party]]:
-    "Starts lobby if it should be started. Also removes non-full parties."
+    """Starts lobby if it should be started.
+
+    Also removes non-full parties if party is started because max queue time exceeded.
+    """
 
     is_full = lobby.current_player_count() == lobby.max_players
     past_max_wait_time = lobby.queue_time >= max_queue_time_secs
