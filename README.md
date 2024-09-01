@@ -24,4 +24,5 @@ Matchmaking systems have a tradeoff between three things:
 1. Install [Poetry](https://python-poetry.org/docs/#installation)
 2. Install requirements: `poetry install`
 3. Run simulation: `poetry run python simulation.py --simulated_secs=600 --max_queue_time=300 --mmr_method=max_gs --mmr_threshold=50`
+    * Current`mmr_method` are `max_gs` and `avg_gs`.
 4. Open `results.json`
