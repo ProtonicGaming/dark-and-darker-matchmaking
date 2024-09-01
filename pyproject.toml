@@ -5,6 +5,7 @@ description = "Dark and Darker matchmaking proof of concept"
 authors = ["protonic <pr0tonic@protonmail.ch>"]
 license = "Apache License 2.0"
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -16,6 +17,7 @@ black = "^24.8.0"
 flake8 = "^7.1.1"
 mypy = "^1.11.1"
 isort = "^5.13.2"
+snakeviz = "^2.2.0"
 
 [build-system]
 requires = ["poetry-core"]
