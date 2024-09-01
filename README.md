@@ -1,6 +1,8 @@
 # Dark and Darker Matchmaking Concept
 
-Proof of concept for matchmaking system in Dark and Darker
+Proof of concept for matchmaking system in Dark and Darker.
+
+Disclaimer: This is a proof of concept for experimenation and not designed to be a drop in replacement in a production system.
 
 ## Design
 Matchmaking systems have a tradeoff between three things:
@@ -11,9 +13,9 @@ Matchmaking systems have a tradeoff between three things:
 ### Current Constraints
 * Wait time cap
 * Games can be not-full. Possibly one party in a game
-* Max MMR difference between parties to be placed in the same game.
+* Parties with MMR difference above threshold cannot be placed in same game..
 
 ### Properties
-* Game map rotates (currently like DaD)
-* System attempts to fill parties and incomplete parties cannot be placed in a game (currently like DaD)
+* One map at a time (currently like DaD)
+* System attempts to fill non-full parties and non-full parties cannot be placed in a game (currently like DaD)
     * System will attempt to find another teammate for a duo party queued in trios but if fail to find a teammate cancel matchmaking
