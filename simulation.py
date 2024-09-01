@@ -54,17 +54,15 @@ def party_queuing_generator(current_map=Map.goblin_caves):
         yield [generate_party(map=current_map) for i in range(num_parties)]
 
 
-def simulator(simulated_secs=600, max_queue_time_secs=300) -> dict:
-    """Simulates parties queuing and being matched into a game.
-
-    simulated_secs: how long to simulate matchmaking system running.
-
-    max_queue_time_secs: Max fill time for lobby before force starting game
-    """
+def simulator(
+    simulated_secs=600, max_queue_time_secs=300, mmr_method="max_gs", mmr_threshold=50
+) -> dict:
+    """Simulates parties queuing and being matched into a game."""
 
     # {solo/duo/trio: [lobbies]}
     all_filling_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
     all_started_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
+    # parties sent back to menu because no game could be found
     all_canceled_parties: list[Party] = []
 
     party_gen = party_queuing_generator()
@@ -86,6 +84,8 @@ def simulator(simulated_secs=600, max_queue_time_secs=300) -> dict:
                     lobby_group,
                     party,
                     max_queue_time_secs=max_queue_time_secs,
+                    mmr_method=mmr_method,
+                    mmr_threshold=mmr_threshold,
                 )
             )
 
@@ -98,16 +98,49 @@ def simulator(simulated_secs=600, max_queue_time_secs=300) -> dict:
     return {
         "started": all_started_lobbies,
         "filling": all_filling_lobbies,
-        # parties sent back to menu because no game could be found
         "canceled_parties": all_canceled_parties,
     }
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(prog="Dark and Darker Matchmaking Simulator")
+    parser = argparse.ArgumentParser(
+        description="Dark and Darker Matchmaking Simulator"
+    )
 
+    parser.add_argument(
+        "--simulated_secs",
+        type=int,
+        default=300,
+        help="How long to simulate matchmaking system running.",
+    )
+    parser.add_argument(
+        "--max_queue_time",
+        type=int,
+        default=300,
+        help="How long can a lobby be filling before force starting.",
+    )
+    parser.add_argument(
+        "--mmr_method",
+        type=str,
+        default="max_gs",
+        help="MMR calculation method: Currently 'max_gs' and 'avg_gs'.",
+    )
+    parser.add_argument(
+        "--mmr_threshold",
+        type=float,
+        default=50,
+        help="Maximum MMR difference for two parties to be matchable.",
+    )
 
+    args = parser.parse_args()
+
+    results = simulator(
+        simulated_secs=args.simulated_secs,
+        max_queue_time_secs=args.max_queue_time,
+        mmr_method=args.mmr_method,
+        mmr_threshold=args.mmr_threshold,
+    )
 
     with open("results.json", "w") as f:
-        json.dump(simulator(), f, cls=PydanticEncoder, sort_keys=True, indent=2)
+        json.dump(results, f, cls=PydanticEncoder, sort_keys=True, indent=2)

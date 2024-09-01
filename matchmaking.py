@@ -15,28 +15,36 @@ def average_gearscore_mmr(party: Party) -> float:
     return average_mmr
 
 
+MMR_FUNCTIONS = {"max_gs": max_gearscore_mmr, "avg_gs": average_gearscore_mmr}
+
+
 def are_parties_matchable(
-    party_a: Party, party_b: Party, mmr_fn=max_gearscore_mmr, threshold=50
+    party_a: Party, party_b: Party, mmr_fn=max_gearscore_mmr, mmr_threshold=50
 ) -> bool:
     "Decides if parties are matchable if mmr is within 'threshold'"
 
     a_mmr = mmr_fn(party_a)
     b_mmr = mmr_fn(party_b)
-    can_match = abs(a_mmr - b_mmr) <= threshold
+    can_match = abs(a_mmr - b_mmr) <= mmr_threshold
 
     return can_match
 
 
 def can_add_party_to_lobby(
-    lobby: Lobby, party: Party, mmr_fn=max_gearscore_mmr, threshold=50
+    lobby: Lobby, party: Party, mmr_method="max_gs", mmr_threshold=50
 ) -> bool:
     """Determines if party can be added to lobby.
 
     Every party in the lobby must be matchable with new potential party"""
 
+    try:
+        mmr_fn = MMR_FUNCTIONS[mmr_method]
+    except KeyError:
+        raise NotImplementedError(f"No implementation for mmr method: {mmr_method}")
+
     for lobby_party in lobby.parties:
         if not are_parties_matchable(
-            lobby_party, party, mmr_fn=mmr_fn, threshold=threshold
+            lobby_party, party, mmr_fn=mmr_fn, mmr_threshold=mmr_threshold
         ):
             return False
 
@@ -64,11 +72,12 @@ def attempt_merge_party(lobby: Lobby, new_party: Party) -> Tuple[bool, Party]:
 
 
 def attempt_add_party_to_lobby(
-    lobby: Lobby, party: Party, mmr_fn=max_gearscore_mmr, threshold=50
-):
-
+    lobby: Lobby, party: Party, mmr_method="max_gs", mmr_threshold=50
+) -> tuple[bool, Party]:
     # mmr check
-    mmr_check = can_add_party_to_lobby(lobby, party, mmr_fn=mmr_fn, threshold=threshold)
+    mmr_check = can_add_party_to_lobby(
+        lobby, party, mmr_method=mmr_method, mmr_threshold=mmr_threshold
+    )
     player_count_check = (
         lobby.current_player_count() + len(party)
     ) <= lobby.max_players
@@ -89,7 +98,9 @@ def attempt_add_party_to_lobby(
         return False, party
 
 
-def put_party_in_lobby(filling_lobbies: list[Lobby], party: Party) -> list[Lobby]:
+def put_party_in_lobby(
+    filling_lobbies: list[Lobby], party: Party, **kwargs
+) -> list[Lobby]:
     """Adds a party from the matchmaking queue to lobbies being filled."""
 
     if not filling_lobbies:
@@ -100,7 +111,7 @@ def put_party_in_lobby(filling_lobbies: list[Lobby], party: Party) -> list[Lobby
         successfully_added_party = False
         for lobby in filling_lobbies:
             # attempt to add to existing lobbies
-            was_merged, _ = attempt_add_party_to_lobby(lobby, party)
+            was_merged, _ = attempt_add_party_to_lobby(lobby, party, **kwargs)
             if was_merged:
                 successfully_added_party = True
                 break
@@ -162,10 +173,12 @@ def regroup_lobbies(
 
 
 def matchmake_party(
-    filling_lobbies: list[Lobby], party: Party, max_queue_time_secs: int = 120
+    filling_lobbies: list[Lobby],
+    party: Party,
+    max_queue_time_secs: int = 120,
+    **kwargs,
 ) -> Tuple[list[Lobby], list[Lobby], list[Party]]:
-
-    filling_lobbies = put_party_in_lobby(filling_lobbies, party)
+    filling_lobbies = put_party_in_lobby(filling_lobbies, party, **kwargs)
 
     canceled_parties: list[Party] = []
     for lobby in filling_lobbies:
