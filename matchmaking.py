@@ -5,12 +5,12 @@ from schema import Lobby, LobbyStatus, Party
 
 # MMR Heirutrics
 def max_gearscore_mmr(party: Party) -> float:
-    mmr = max([player.gear_score for player in party.players])
+    mmr = max(player.gear_score for player in party.players)
     return mmr
 
 
 def average_gearscore_mmr(party: Party) -> float:
-    total_mmr = sum([player.gear_score for player in party.players])
+    total_mmr = sum(player.gear_score for player in party.players)
     average_mmr = total_mmr / len(party.players)
     return average_mmr
 
@@ -89,16 +89,16 @@ def attempt_add_party_to_lobby(
         return False, party
 
 
-def put_party_in_lobby(waiting_lobbies: list[Lobby], party: Party) -> list[Lobby]:
+def put_party_in_lobby(filling_lobbies: list[Lobby], party: Party) -> list[Lobby]:
     """Adds a party from the matchmaking queue to lobbies being filled."""
 
-    if not waiting_lobbies:
+    if not filling_lobbies:
         # create lobby
         new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
-        waiting_lobbies.append(new_lobby)
+        filling_lobbies.append(new_lobby)
     else:
         successfully_added_party = False
-        for lobby in waiting_lobbies:
+        for lobby in filling_lobbies:
             # attempt to add to existing lobbies
             was_merged, _ = attempt_add_party_to_lobby(lobby, party)
             if was_merged:
@@ -107,9 +107,9 @@ def put_party_in_lobby(waiting_lobbies: list[Lobby], party: Party) -> list[Lobby
         # failed to add to lobby - create new lobby
         if not successfully_added_party:
             new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
-            waiting_lobbies.append(new_lobby)
+            filling_lobbies.append(new_lobby)
 
-    return waiting_lobbies
+    return filling_lobbies
 
 
 def maybe_start_lobby(
@@ -152,23 +152,23 @@ def maybe_cancel_matchmaking(
 def regroup_lobbies(
     lobbies: list[Lobby],
 ) -> Tuple[list[Lobby], list[Lobby], list[Lobby]]:
-    "Regroups lobbies into waiting, started, and canceled"
+    "Regroups lobbies into filling, started, and canceled"
 
-    waiting = [lob for lob in lobbies if lob.status == LobbyStatus.filling]
+    filling = [lob for lob in lobbies if lob.status == LobbyStatus.filling]
     started = [lob for lob in lobbies if lob.status == LobbyStatus.started]
     canceled = [lob for lob in lobbies if lob.status == LobbyStatus.canceled]
 
-    return waiting, started, canceled
+    return filling, started, canceled
 
 
 def matchmake_party(
-    waiting_lobbies: list[Lobby], party: Party, max_queue_time_secs: int = 120
+    filling_lobbies: list[Lobby], party: Party, max_queue_time_secs: int = 120
 ) -> Tuple[list[Lobby], list[Lobby], list[Party]]:
 
-    waiting_lobbies = put_party_in_lobby(waiting_lobbies, party)
+    filling_lobbies = put_party_in_lobby(filling_lobbies, party)
 
     canceled_parties: list[Party] = []
-    for lobby in waiting_lobbies:
+    for lobby in filling_lobbies:
         _, dropped_parties = maybe_start_lobby(
             lobby, max_queue_time_secs=max_queue_time_secs
         )
@@ -179,7 +179,7 @@ def matchmake_party(
         )
         canceled_parties = canceled_parties + dropped_parties
 
-    waiting_lobbies, started_lobbies, canceled_lobbies = regroup_lobbies(
-        waiting_lobbies
+    filling_lobbies, started_lobbies, canceled_lobbies = regroup_lobbies(
+        filling_lobbies
     )
-    return waiting_lobbies, started_lobbies, canceled_parties
+    return filling_lobbies, started_lobbies, canceled_parties

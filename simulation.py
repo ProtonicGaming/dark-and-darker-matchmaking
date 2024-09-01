@@ -1,7 +1,6 @@
+import argparse
 import json
 import random
-from queue import PriorityQueue, Queue
-from typing import Tuple
 
 from pydantic import BaseModel
 
@@ -20,6 +19,7 @@ class PydanticEncoder(json.JSONEncoder):
 def generate_player(
     min_level: int = 1, max_level: int = 300, min_gs: int = 1, max_gs: int = 400
 ) -> Player:
+    "Generated random player with given parameters"
     gear_score = random.randrange(min_gs, max_gs)
     level = random.randrange(min_level, max_level)
     job = random.choice(list(Job))
@@ -31,6 +31,7 @@ def generate_player(
 def generate_party(
     num_players: int | None = None, map: Map | None = None, max_size: int | None = None
 ) -> Party:
+    "Generated random party with given parameters"
 
     # solo/duo/trio
     if not max_size:
@@ -46,68 +47,49 @@ def generate_party(
     return party
 
 
-# QUEUES = {1: PriorityQueue(), 2: PriorityQueue(), 3: PriorityQueue()}
-
-QueueType = Queue[Tuple[int, Party]]
-QUEUE: QueueType = PriorityQueue()
-
-
-def producer():
-    current_map = random.choice(list(Map))
-
-    for queue_time in range(300):
-        new_party_queued = random.choices([True, False], weights=[0.25, 0.75])
-
-        if new_party_queued:
-            new_party = generate_party(map=current_map)
-            priority = queue_time  # Simulated queue time
-
-            QUEUE.put((priority, new_party))
-
-
-def party_queing_generator(current_map=Map.goblin_caves):
-    t = 0
+def party_queuing_generator(current_map=Map.goblin_caves):
+    "Generates parties that have 'queued' for a game"
     while True:
-        new_party_queued = random.choices([True, False], weights=[0.5, 0.5])[0]
-        if new_party_queued:
-            new_party = generate_party(map=current_map)
-            yield new_party
-            t += 1
-        else:
-            yield None
+        num_parties = random.randrange(0, 2)
+        yield [generate_party(map=current_map) for i in range(num_parties)]
 
 
-def simulator(simulated_secs=11663, max_queue_time_secs=64) -> dict:
+def simulator(simulated_secs=600, max_queue_time_secs=300) -> dict:
+    """Simulates parties queuing and being matched into a game.
 
-    all_waiting_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
+    simulated_secs: how long to simulate matchmaking system running.
+
+    max_queue_time_secs: Max fill time for lobby before force starting game
+    """
+
+    # {solo/duo/trio: [lobbies]}
+    all_filling_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
     all_started_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
-    # all_canceled_lobbies = {1: [], 2: [], 3: []}
-
     all_canceled_parties: list[Party] = []
 
+    party_gen = party_queuing_generator()
+
     for t in range(simulated_secs):
-
-        gen = party_queing_generator()
-
-        for lobby_group in all_waiting_lobbies.values():
+        for lobby_group in all_filling_lobbies.values():
             for lobby in lobby_group:
                 lobby.queue_time += 1
 
-        possibly_queued_party = next(gen)
+        queued_parties = next(party_gen)
 
-        if possibly_queued_party:
-            l_party_size = possibly_queued_party.max_size
-            lobby_group = all_waiting_lobbies[l_party_size]
+        for party in queued_parties:
+            l_party_size = party.max_size
+            # list of lobbies for the solo/duo/trio queue
+            lobby_group = all_filling_lobbies[l_party_size]
 
             lobby_group, started_lobbies, canceled_parties = (
                 matchmaking.matchmake_party(
                     lobby_group,
-                    possibly_queued_party,
+                    party,
                     max_queue_time_secs=max_queue_time_secs,
                 )
             )
 
-            all_waiting_lobbies[l_party_size] = lobby_group
+            all_filling_lobbies[l_party_size] = lobby_group
             all_started_lobbies[l_party_size] = (
                 all_started_lobbies[l_party_size] + started_lobbies
             )
@@ -115,12 +97,17 @@ def simulator(simulated_secs=11663, max_queue_time_secs=64) -> dict:
 
     return {
         "started": all_started_lobbies,
-        "waiting": all_waiting_lobbies,
+        "filling": all_filling_lobbies,
+        # parties sent back to menu because no game could be found
         "canceled_parties": all_canceled_parties,
-        # "canceled": all_canceled_lobbies,
     }
 
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(prog="Dark and Darker Matchmaking Simulator")
+
+
+
     with open("results.json", "w") as f:
         json.dump(simulator(), f, cls=PydanticEncoder, sort_keys=True, indent=2)

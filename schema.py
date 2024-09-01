@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, AfterValidator, computed_field, Field
 
-from typing import Annotated, Literal
+from typing import Annotated
 
 
 class Job(str, Enum):
@@ -60,7 +60,7 @@ class Lobby(BaseModel):
     # solo/duo/trio
     party_size: Annotated[int, Field(ge=1, le=3)]
 
-    @computed_field # type: ignore[misc]
+    @computed_field  # type: ignore[misc]
     @property
     def max_players(self) -> int:
         match self.party_size:
@@ -75,4 +75,4 @@ class Lobby(BaseModel):
                 return 10
 
     def current_player_count(self) -> int:
-        return sum([len(p) for p in self.parties])
+        return sum(len(p) for p in self.parties)
