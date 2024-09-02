@@ -50,7 +50,7 @@ def generate_party(
 def party_queuing_generator(current_map=Map.goblin_caves):
     "Generates parties that have 'queued' for a game"
     while True:
-        num_parties = random.randrange(0, 2)
+        num_parties = random.randrange(0, 4)
         yield [generate_party(map=current_map) for i in range(num_parties)]
 
 
@@ -68,32 +68,49 @@ def simulator(
     party_gen = party_queuing_generator()
 
     for t in range(simulated_secs):
-        for lobby_group in all_filling_lobbies.values():
-            for lobby in lobby_group:
-                lobby.queue_time += 1
 
         queued_parties = next(party_gen)
 
+        # 1. Place party in a lobby
         for party in queued_parties:
             l_party_size = party.max_size
             # list of lobbies for the solo/duo/trio queue
             lobby_group = all_filling_lobbies[l_party_size]
 
-            lobby_group, started_lobbies, canceled_parties = (
-                matchmaking.matchmake_party(
-                    lobby_group,
-                    party,
-                    max_queue_time_secs=max_queue_time_secs,
-                    mmr_method=mmr_method,
-                    mmr_threshold=mmr_threshold,
+            lobby_group = matchmaking.put_party_in_lobby(
+                lobby_group,
+                party,
+                max_queue_time=max_queue_time_secs,
+                mmr_method=mmr_method,
+                mmr_threshold=mmr_threshold,
+            )
+            all_filling_lobbies[l_party_size] = lobby_group
+
+        # 2. Start or cancel lobbies
+        for l_party_size, lobbies in all_filling_lobbies.items():
+
+            for lobby in lobbies:
+                _, dropped_parties = matchmaking.maybe_start_lobby(
+                    lobby, max_queue_time_secs
                 )
+                all_canceled_parties.extend(dropped_parties)
+
+            for lobby in lobbies:
+                _, dropped_parties, matchmaking.maybe_cancel_matchmaking(
+                    lobby, max_queue_time_secs
+                )
+                all_canceled_parties.extend(dropped_parties)
+
+            filling_lobbies, started_lobbies, canceled_lobbies = (
+                matchmaking.regroup_lobbies(lobbies)
             )
 
-            all_filling_lobbies[l_party_size] = lobby_group
-            all_started_lobbies[l_party_size] = (
-                all_started_lobbies[l_party_size] + started_lobbies
-            )
-            all_canceled_parties = all_canceled_parties + canceled_parties
+            all_filling_lobbies[l_party_size] = filling_lobbies
+            all_started_lobbies[l_party_size].extend(started_lobbies)
+
+        for lobby_group in all_filling_lobbies.values():
+            for lobby in lobby_group:
+                lobby.queue_time += 1
 
     return {
         "started": all_started_lobbies,

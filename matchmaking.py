@@ -72,12 +72,13 @@ def attempt_merge_party(lobby: Lobby, new_party: Party) -> Tuple[bool, Party]:
 
 
 def attempt_add_party_to_lobby(
-    lobby: Lobby, party: Party, mmr_method="max_gs", mmr_threshold=50
+    lobby: Lobby, party: Party, mmr_method="max_gs", mmr_threshold=50, **kwargs
 ) -> tuple[bool, Party]:
     # mmr check
     mmr_check = can_add_party_to_lobby(
         lobby, party, mmr_method=mmr_method, mmr_threshold=mmr_threshold
     )
+    # Will adding party to lobby go over lobby max players?
     player_count_check = (
         lobby.current_player_count() + len(party)
     ) <= lobby.max_players
@@ -103,8 +104,8 @@ def put_party_in_lobby(
 ) -> list[Lobby]:
     """Adds a party from the matchmaking queue to lobbies being filled."""
 
+    # No existing lobbies: create one
     if not filling_lobbies:
-        # create lobby
         new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
         filling_lobbies.append(new_lobby)
     else:
@@ -115,7 +116,7 @@ def put_party_in_lobby(
             if was_merged:
                 successfully_added_party = True
                 break
-        # failed to add to lobby - create new lobby
+        # No matchable lobbies: create new lobby
         if not successfully_added_party:
             new_lobby = Lobby(parties=[party], map=party.map, party_size=party.max_size)
             filling_lobbies.append(new_lobby)
@@ -131,17 +132,29 @@ def maybe_start_lobby(
     Also removes non-full parties if party is started because max queue time exceeded.
     """
 
-    is_full = lobby.current_player_count() == lobby.max_players
+    # only full if sum of full parties is max lobby player count
+    num_players_in_full_parties = sum(
+        len(p) for p in lobby.parties if len(p) == lobby.party_size
+    )
+
+    is_full = num_players_in_full_parties == lobby.max_players
     past_max_wait_time = lobby.queue_time >= max_queue_time_secs
 
     dropped_parties = []
     if is_full or past_max_wait_time:
-        lobby.status = LobbyStatus.started
+
 
         for party in lobby.parties:
             if len(party) < lobby.party_size:
                 lobby.parties.remove(party)
                 dropped_parties.append(party)
+
+        # no full parties, cancel lobby
+        # since we removed non-full parties lobby will be empty
+        if num_players_in_full_parties == 0:
+            lobby.status = LobbyStatus.canceled
+        else:
+            lobby.status = LobbyStatus.started
 
     return lobby, dropped_parties
 
@@ -170,29 +183,3 @@ def regroup_lobbies(
     canceled = [lob for lob in lobbies if lob.status == LobbyStatus.canceled]
 
     return filling, started, canceled
-
-
-def matchmake_party(
-    filling_lobbies: list[Lobby],
-    party: Party,
-    max_queue_time_secs: int = 120,
-    **kwargs,
-) -> Tuple[list[Lobby], list[Lobby], list[Party]]:
-    filling_lobbies = put_party_in_lobby(filling_lobbies, party, **kwargs)
-
-    canceled_parties: list[Party] = []
-    for lobby in filling_lobbies:
-        _, dropped_parties = maybe_start_lobby(
-            lobby, max_queue_time_secs=max_queue_time_secs
-        )
-        canceled_parties = canceled_parties + dropped_parties
-
-        _, dropped_parties = maybe_cancel_matchmaking(
-            lobby, max_queue_time_secs=max_queue_time_secs
-        )
-        canceled_parties = canceled_parties + dropped_parties
-
-    filling_lobbies, started_lobbies, canceled_lobbies = regroup_lobbies(
-        filling_lobbies
-    )
-    return filling_lobbies, started_lobbies, canceled_parties
