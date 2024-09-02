@@ -1,8 +1,8 @@
-import simulation as simulation
-import matchmaking as matchmaking
-from schema import Job, Map
-
 import pytest
+
+import matchmaking as matchmaking
+import simulation as simulation
+from schema import Job, Map
 
 
 def test_generate_player():

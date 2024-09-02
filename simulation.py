@@ -54,48 +54,6 @@ def party_queuing_generator(current_map=Map.goblin_caves):
         yield [generate_party(map=current_map) for i in range(num_parties)]
 
 
-def simulator(
-    simulated_secs=600, max_queue_time_secs=300, mmr_method="max_gs", mmr_threshold=50
-) -> dict:
-    """Simulates parties queuing and being matched into a game."""
-
-    # {solo/duo/trio: [lobbies]}
-    all_filling_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
-    all_started_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
-    # parties sent back to menu because no game could be found
-    all_canceled_parties: list[Party] = []
-
-    party_gen = party_queuing_generator()
-
-    for t in range(simulated_secs):
-        queued_parties = next(party_gen)
-        process_queued_parties(
-            queued_parties,
-            all_filling_lobbies,
-            max_queue_time_secs,
-            mmr_method,
-            mmr_threshold,
-        )
-        update_lobbies(
-            all_filling_lobbies,
-            all_started_lobbies,
-            all_canceled_parties,
-            max_queue_time_secs,
-        )
-        increment_queue_time(all_filling_lobbies)
-
-    return {
-        "started": all_started_lobbies,
-        "filling": all_filling_lobbies,
-        "canceled_parties": all_canceled_parties,
-    }
-
-
-def initialize_lobbies() -> dict[int, list[Lobby]]:
-    """Initializes the lobbies dictionary."""
-    return {1: [], 2: [], 3: []}
-
-
 def process_queued_parties(
     queued_parties: list[Party],
     all_filling_lobbies: dict[int, list[Lobby]],
@@ -157,6 +115,43 @@ def increment_queue_time(all_filling_lobbies: dict[int, list[Lobby]]):
     for lobby_group in all_filling_lobbies.values():
         for lobby in lobby_group:
             lobby.queue_time += 1
+
+
+def simulator(
+    simulated_secs=600, max_queue_time_secs=300, mmr_method="max_gs", mmr_threshold=50
+) -> dict:
+    """Simulates parties queuing and being matched into a game."""
+
+    # {solo/duo/trio: [lobbies]}
+    all_filling_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
+    all_started_lobbies: dict[int, list[Lobby]] = {1: [], 2: [], 3: []}
+    # parties sent back to menu because no game could be found
+    all_canceled_parties: list[Party] = []
+
+    party_gen = party_queuing_generator()
+
+    for t in range(simulated_secs):
+        queued_parties = next(party_gen)
+        process_queued_parties(
+            queued_parties,
+            all_filling_lobbies,
+            max_queue_time_secs,
+            mmr_method,
+            mmr_threshold,
+        )
+        update_lobbies(
+            all_filling_lobbies,
+            all_started_lobbies,
+            all_canceled_parties,
+            max_queue_time_secs,
+        )
+        increment_queue_time(all_filling_lobbies)
+
+    return {
+        "started": all_started_lobbies,
+        "filling": all_filling_lobbies,
+        "canceled_parties": all_canceled_parties,
+    }
 
 
 if __name__ == "__main__":

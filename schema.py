@@ -1,8 +1,7 @@
 from enum import Enum
-
-from pydantic import BaseModel, AfterValidator, computed_field, Field
-
 from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, Field, computed_field
 
 
 class Job(str, Enum):

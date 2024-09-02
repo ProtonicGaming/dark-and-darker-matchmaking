@@ -1,9 +1,8 @@
-import matchmaking
-from simulation import generate_party, generate_player
-from schema import Party, Player, Lobby, Map, Job
-
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
+
+import matchmaking
+from schema import Lobby, Party, Player
 
 
 def test_max_gearscore_mmr():
@@ -63,17 +62,16 @@ def test_are_parties_matchable():
     )
 
     assert not matchmaking.are_parties_matchable(
-        party_a, party_b, mmr_fn=matchmaking.max_gearscore_mmr, threshold=50
+        party_a, party_b, mmr_fn=matchmaking.max_gearscore_mmr, mmr_threshold=50
     )
     assert matchmaking.are_parties_matchable(
-        party_a, party_c, mmr_fn=matchmaking.max_gearscore_mmr, threshold=50
+        party_a, party_c, mmr_fn=matchmaking.max_gearscore_mmr, mmr_threshold=50
     )
 
 
-# Optional: Tests for edge cases
 def test_empty_party():
     with pytest.raises(ValidationError):
-        party = Party(players=[], map="goblin_caves", max_size=0)
+        Party(players=[], map="goblin_caves", max_size=0)
 
 
 def test_single_player_party():
@@ -81,28 +79,6 @@ def test_single_player_party():
     party = Party(players=[player], map="goblin_caves", max_size=1)
     assert matchmaking.max_gearscore_mmr(party) == player.gear_score
     assert matchmaking.average_gearscore_mmr(party) == player.gear_score
-
-
-"""
-def test_combine_incomplete_parties():
-    max_party_size = 3
-    parties = [
-        generate_party(2, max_party_size),
-        generate_party(3, max_party_size),
-        generate_party(3, max_party_size),
-        generate_party(2, max_party_size),
-        generate_party(3, max_party_size),
-        generate_party(1, max_party_size),
-        generate_party(2, max_party_size),
-    ]
-
-    complete_parties, failed_to_complete = matchmaking.combine_incomplete_parties(
-        parties, max_party_size
-    )
-
-    assert len(failed_to_complete) == 2
-    assert len(complete_parties) == 4
-"""
 
 
 def test_successful_attempt_add_party_to_lobby():
