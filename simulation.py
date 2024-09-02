@@ -68,55 +68,95 @@ def simulator(
     party_gen = party_queuing_generator()
 
     for t in range(simulated_secs):
-
         queued_parties = next(party_gen)
-
-        # 1. Place party in a lobby
-        for party in queued_parties:
-            l_party_size = party.max_size
-            # list of lobbies for the solo/duo/trio queue
-            lobby_group = all_filling_lobbies[l_party_size]
-
-            lobby_group = matchmaking.put_party_in_lobby(
-                lobby_group,
-                party,
-                max_queue_time=max_queue_time_secs,
-                mmr_method=mmr_method,
-                mmr_threshold=mmr_threshold,
-            )
-            all_filling_lobbies[l_party_size] = lobby_group
-
-        # 2. Start or cancel lobbies
-        for l_party_size, lobbies in all_filling_lobbies.items():
-
-            for lobby in lobbies:
-                _, dropped_parties = matchmaking.maybe_start_lobby(
-                    lobby, max_queue_time_secs
-                )
-                all_canceled_parties.extend(dropped_parties)
-
-            for lobby in lobbies:
-                _, dropped_parties, matchmaking.maybe_cancel_matchmaking(
-                    lobby, max_queue_time_secs
-                )
-                all_canceled_parties.extend(dropped_parties)
-
-            filling_lobbies, started_lobbies, canceled_lobbies = (
-                matchmaking.regroup_lobbies(lobbies)
-            )
-
-            all_filling_lobbies[l_party_size] = filling_lobbies
-            all_started_lobbies[l_party_size].extend(started_lobbies)
-
-        for lobby_group in all_filling_lobbies.values():
-            for lobby in lobby_group:
-                lobby.queue_time += 1
+        process_queued_parties(
+            queued_parties,
+            all_filling_lobbies,
+            max_queue_time_secs,
+            mmr_method,
+            mmr_threshold,
+        )
+        update_lobbies(
+            all_filling_lobbies,
+            all_started_lobbies,
+            all_canceled_parties,
+            max_queue_time_secs,
+        )
+        increment_queue_time(all_filling_lobbies)
 
     return {
         "started": all_started_lobbies,
         "filling": all_filling_lobbies,
         "canceled_parties": all_canceled_parties,
     }
+
+
+def initialize_lobbies() -> dict[int, list[Lobby]]:
+    """Initializes the lobbies dictionary."""
+    return {1: [], 2: [], 3: []}
+
+
+def process_queued_parties(
+    queued_parties: list[Party],
+    all_filling_lobbies: dict[int, list[Lobby]],
+    max_queue_time_secs: int,
+    mmr_method: str,
+    mmr_threshold: int,
+):
+    """Processes the queued parties by placing them in lobbies."""
+    for party in queued_parties:
+        l_party_size = party.max_size
+        lobby_group = all_filling_lobbies[l_party_size]
+        lobby_group = matchmaking.put_party_in_lobby(
+            lobby_group,
+            party,
+            max_queue_time=max_queue_time_secs,
+            mmr_method=mmr_method,
+            mmr_threshold=mmr_threshold,
+        )
+        all_filling_lobbies[l_party_size] = lobby_group
+
+
+def update_lobbies(
+    all_filling_lobbies: dict[int, list[Lobby]],
+    all_started_lobbies: dict[int, list[Lobby]],
+    all_canceled_parties: list[Party],
+    max_queue_time_secs: int,
+):
+    """Starts or cancels lobbies and updates their status."""
+    for l_party_size, lobbies in all_filling_lobbies.items():
+        canceled_parties = start_or_cancel_lobbies(lobbies, max_queue_time_secs)
+        all_canceled_parties.extend(canceled_parties)
+
+        filling_lobbies, started_lobbies, _ = matchmaking.regroup_lobbies(lobbies)
+
+        all_filling_lobbies[l_party_size] = filling_lobbies
+        all_started_lobbies[l_party_size].extend(started_lobbies)
+
+
+def start_or_cancel_lobbies(
+    lobbies: list[Lobby], max_queue_time_secs: int
+) -> list[Party]:
+    """Attempts to start or cancel lobbies based on queue time."""
+    canceled_parties = []
+    for lobby in lobbies:
+        _, dropped_parties = matchmaking.maybe_start_lobby(lobby, max_queue_time_secs)
+        canceled_parties.extend(dropped_parties)
+
+    for lobby in lobbies:
+        _, dropped_parties = matchmaking.maybe_cancel_matchmaking(
+            lobby, max_queue_time_secs
+        )
+        canceled_parties.extend(dropped_parties)
+
+    return canceled_parties
+
+
+def increment_queue_time(all_filling_lobbies: dict[int, list[Lobby]]):
+    """Increments the queue time for all lobbies."""
+    for lobby_group in all_filling_lobbies.values():
+        for lobby in lobby_group:
+            lobby.queue_time += 1
 
 
 if __name__ == "__main__":
